@@ -37,7 +37,10 @@ if TYPE_CHECKING:
 
 if dist.is_available():
     from torch.distributed.distributed_c10d import _get_default_group
-    from torch.distributed.utils import _sync_module_states, _verify_param_shape_across_processes
+    from torch.distributed.utils import (
+        _sync_module_states,
+        _verify_param_shape_across_processes,
+    )
 
 
 try:
@@ -52,7 +55,7 @@ def init() -> int | None:
     pynvml.nvmlInit()
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     device = Device(local_rank)
-    os.sched_setaffinity(0, device.get_cpu_affinity())
+    # os.sched_setaffinity(0, device.get_cpu_affinity())
     # Set up NCCL communication.
     os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "0"
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
@@ -64,7 +67,9 @@ def init() -> int | None:
         timeout_seconds = os.getenv("TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC", 1800)
         # Convert the timeout to an integer (if it isn't already) and then to a timedelta
         timeout_timedelta = timedelta(seconds=int(timeout_seconds))
-        dist.init_process_group(backend="nccl", init_method="env://", timeout=timeout_timedelta)
+        dist.init_process_group(
+            backend="nccl", init_method="env://", timeout=timeout_timedelta
+        )
         log.critical(
             f"Initialized distributed program with local rank {local_rank} with timeout {timeout_seconds}",
             rank0_only=False,
@@ -166,7 +171,9 @@ def rank0_first(func: Callable) -> Callable:
     return wrapper
 
 
-def parallel_model_wrapper(config_ddp: DDPConfig, model: torch.nn.Module) -> torch.nn.Module | DistributedDataParallel:
+def parallel_model_wrapper(
+    config_ddp: DDPConfig, model: torch.nn.Module
+) -> torch.nn.Module | DistributedDataParallel:
     """Wraps the model to enable data parallalism for training across multiple GPU devices.
 
     Args:
@@ -180,10 +187,14 @@ def parallel_model_wrapper(config_ddp: DDPConfig, model: torch.nn.Module) -> tor
     if dist.is_available() and dist.is_initialized():
         local_rank = int(os.getenv("LOCAL_RANK", 0))
         try:
-            ddp_group = parallel_state.get_data_parallel_group(with_context_parallel=True)
+            ddp_group = parallel_state.get_data_parallel_group(
+                with_context_parallel=True
+            )
         except Exception as e:
             log.info(e)
-            log.info("parallel_state not initialized, treating all GPUs equally for DDP")
+            log.info(
+                "parallel_state not initialized, treating all GPUs equally for DDP"
+            )
             ddp_group = None
 
         model = DistributedDataParallel(
@@ -249,7 +260,9 @@ def ddp_sync_grad(model, enabled):
         old_require_backward_grad_sync = model.require_backward_grad_sync
         if model.static_graph and model.require_backward_grad_sync != enabled:
             if model.show_sync_grad_static_graph_warning:
-                log.warning("DDP static_graph=True is incompatible with sync_grad(). Performance will be reduced.")
+                log.warning(
+                    "DDP static_graph=True is incompatible with sync_grad(). Performance will be reduced."
+                )
                 model.show_sync_grad_static_graph_warning = False
         else:
             model.require_backward_grad_sync = enabled
@@ -260,7 +273,9 @@ def ddp_sync_grad(model, enabled):
             model.require_backward_grad_sync = old_require_backward_grad_sync
 
 
-def collate_batches(data_batches: list[dict[str, torch.Tensor]]) -> torch.Tensor | dict[str, torch.Tensor]:
+def collate_batches(
+    data_batches: list[dict[str, torch.Tensor]],
+) -> torch.Tensor | dict[str, torch.Tensor]:
     """Aggregate the list of data batches from all devices and process the results.
 
     This is used for gathering validation data batches with utils.dataloader.DistributedEvalSampler.
@@ -435,3 +450,4 @@ def dist_reduce_tensor(tensor, rank=0, reduce="mean"):
             else:
                 raise NotImplementedError
     return tensor
+

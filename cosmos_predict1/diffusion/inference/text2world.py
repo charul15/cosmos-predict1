@@ -18,8 +18,13 @@ import os
 
 import torch
 
-from cosmos_predict1.diffusion.inference.inference_utils import add_common_arguments, validate_args
-from cosmos_predict1.diffusion.inference.world_generation_pipeline import DiffusionText2WorldGenerationPipeline
+from cosmos_predict1.diffusion.inference.inference_utils import (
+    add_common_arguments,
+    validate_args,
+)
+from cosmos_predict1.diffusion.inference.world_generation_pipeline import (
+    DiffusionText2WorldGenerationPipeline,
+)
 from cosmos_predict1.utils import log, misc
 from cosmos_predict1.utils.io import read_prompts_from_file, save_video
 
@@ -133,24 +138,31 @@ def demo(args):
 
     os.makedirs(args.video_save_folder, exist_ok=True)
     for i, input_dict in enumerate(prompts):
+        if args.batch_input_path:
+            video_save_path = os.path.join(args.video_save_folder, f"{i}.mp4")
+            prompt_save_path = os.path.join(args.video_save_folder, f"{i}.txt")
+        else:
+            video_save_path = os.path.join(
+                args.video_save_folder, f"{args.video_save_name}.mp4"
+            )
+            prompt_save_path = os.path.join(
+                args.video_save_folder, f"{args.video_save_name}.txt"
+            )
+        if os.path.exists(video_save_path):
+            continue
         current_prompt = input_dict.get("prompt", None)
         if current_prompt is None:
             log.critical("Prompt is missing, skipping world generation.")
             continue
 
         # Generate video
-        generated_output = pipeline.generate(current_prompt, args.negative_prompt, args.word_limit_to_skip_upsampler)
+        generated_output = pipeline.generate(
+            current_prompt, args.negative_prompt, args.word_limit_to_skip_upsampler
+        )
         if generated_output is None:
             log.critical("Guardrail blocked text2world generation.")
             continue
         video, prompt = generated_output
-
-        if args.batch_input_path:
-            video_save_path = os.path.join(args.video_save_folder, f"{i}.mp4")
-            prompt_save_path = os.path.join(args.video_save_folder, f"{i}.txt")
-        else:
-            video_save_path = os.path.join(args.video_save_folder, f"{args.video_save_name}.mp4")
-            prompt_save_path = os.path.join(args.video_save_folder, f"{args.video_save_name}.txt")
 
         # Save video
         save_video(
@@ -180,3 +192,4 @@ def demo(args):
 if __name__ == "__main__":
     args = parse_arguments()
     demo(args)
+
